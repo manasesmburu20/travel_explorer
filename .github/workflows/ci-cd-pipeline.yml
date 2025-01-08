@@ -3,24 +3,28 @@ name: CI/CD Pipeline with Auto Merge
 on:
   push:
     branches:
-      - main  # Trigger on pushes to main
+      - main
   pull_request:
     branches:
-      - main  # Trigger on pull requests to main
+      - main
   schedule:
-    - cron: "*/20 * * * *"  # Runs every 20 minutes
+    - cron: "*/20 * * * *"
 
 jobs:
   build:
-    runs-on: ubuntu-latest  # Build on latest Ubuntu
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout Code
         uses: actions/checkout@v2
 
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: stable  # Specify Flutter version (e.g., stable, 3.0.0, etc.)
+
       - name: Pull Changes
-        run: |
-          git pull origin main  # Pull latest changes from the main branch
+        run: git pull origin main
 
       - name: Run Build and Install Dependencies
         run: |
@@ -28,21 +32,23 @@ jobs:
           flutter analyze  # Analyze the project for errors
 
   test:
-    needs: build  # Runs after the build
-
+    needs: build
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout Code
         uses: actions/checkout@v2
 
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: stable
+
       - name: Run Tests
-        run: |
-          flutter test  # Run Flutter tests
+        run: flutter test
 
   merge:
-    needs: test  # Merge only if tests succeed
-
+    needs: test
     runs-on: ubuntu-latest
 
     steps:
@@ -57,8 +63,7 @@ jobs:
           git commit -m "Automated merge"
 
   deploy:
-    needs: merge  # Deploy only if merge succeeds
-
+    needs: merge
     runs-on: ubuntu-latest
 
     steps:
@@ -66,49 +71,43 @@ jobs:
         uses: actions/checkout@v2
 
       - name: Deploy to Staging/Production
-        if: success()  # Deploy only if the merge succeeds
-        run: |
-          echo "Deploying to staging/production..."
-          # Replace with Flutter-specific deployment commands (e.g., to Firebase, AWS, etc.)
+        if: success()
+        run: echo "Deploying to staging/production..."
 
   parallel_tests:
     needs: test
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        language: [flutter]  # Define languages to run tests in parallel
+        language: [flutter]
 
     steps:
       - name: Checkout Code
         uses: actions/checkout@v2
 
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: stable
+
       - name: Run Tests in Parallel
-        run: |
-          flutter test
+        run: flutter test
 
   notify:
     needs: test
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout Code
         uses: actions/checkout@v2
 
       - name: Send Notifications
-        run: |
-          if [ "${{ github.event_name }}" == "push" ]; then
-            echo "Sending notification for successful deployment..."
-            # Add your notification command for success (email, Slack, etc.)
-          elif [ "${{ github.event_name }}" == "pull_request" ]; then
-            echo "Sending notification for successful deployment..."
-            # Add your notification command for success (email, Slack, etc.)
-          else
-            echo "Sending notification if there is any issue in the pipeline."
-            # Add your notification command (e.g., email, Slack, etc.) for failure
-          fi
+        run: echo "Sending notifications based on pipeline results..."
 
   version_tag:
     needs: merge
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout Code
         uses: actions/checkout@v2
