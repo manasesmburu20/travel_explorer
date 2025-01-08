@@ -1,0 +1,119 @@
+name: CI/CD Pipeline with Auto Merge
+
+on:
+  push:
+    branches:
+      - main  # Trigger on pushes to main
+  pull_request:
+    branches:
+      - main  # Trigger on pull requests to main
+  schedule:
+    - cron: "*/20 * * * *"  # Runs every 20 minutes
+
+jobs:
+  build:
+    runs-on: ubuntu-latest  # Build on latest Ubuntu
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v2
+
+      - name: Pull Changes
+        run: |
+          git pull origin main  # Pull latest changes from the main branch
+
+      - name: Run Build and Install Dependencies
+        run: |
+          flutter pub get  # Install Flutter dependencies
+          flutter analyze  # Analyze the project for errors
+
+  test:
+    needs: build  # Runs after the build
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v2
+
+      - name: Run Tests
+        run: |
+          flutter test  # Run Flutter tests
+
+  merge:
+    needs: test  # Merge only if tests succeed
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v2
+
+      - name: Merge Latest Changes
+        run: |
+          git checkout main
+          git pull origin main
+          git merge ${{ github.event.head_commit.id }} --no-commit --no-ff
+          git commit -m "Automated merge"
+
+  deploy:
+    needs: merge  # Deploy only if merge succeeds
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v2
+
+      - name: Deploy to Staging/Production
+        if: success()  # Deploy only if the merge succeeds
+        run: |
+          echo "Deploying to staging/production..."
+          # Replace with Flutter-specific deployment commands (e.g., to Firebase, AWS, etc.)
+
+  parallel_tests:
+    needs: test
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        language: [flutter]  # Define languages to run tests in parallel
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v2
+
+      - name: Run Tests in Parallel
+        run: |
+          flutter test
+
+  notify:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v2
+
+      - name: Send Notifications
+        run: |
+          if [ "${{ github.event_name }}" == "push" ]; then
+            echo "Sending notification for successful deployment..."
+            # Add your notification command for success (email, Slack, etc.)
+          elif [ "${{ github.event_name }}" == "pull_request" ]; then
+            echo "Sending notification for successful deployment..."
+            # Add your notification command for success (email, Slack, etc.)
+          else
+            echo "Sending notification if there is any issue in the pipeline."
+            # Add your notification command (e.g., email, Slack, etc.) for failure
+          fi
+
+  version_tag:
+    needs: merge
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v2
+
+      - name: Create Version Tag
+        run: |
+          git tag -a v$(date +%Y.%m.%d) -m "Release version"
+          git push origin v$(date +%Y.%m.%d)
